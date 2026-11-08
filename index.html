@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="az"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="UTF-8">
+    <title>CODMON UAV SYSTEM</title>
+    <link rel="stylesheet" href="CODMON%20UAV%20SYSTEM_files/leaflet_KXmY.css">
+    <style>
+        :root { --main: #00ff41; --danger: #ff0000; --warn: #ffcc00; }
+        body, html { margin: 0; padding: 0; background: #000; color: var(--main); font-family: 'Courier New', monospace; overflow: hidden; height: 100vh; }
+        
+        #map { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        .mode-night { filter: grayscale(1) contrast(1.6) brightness(0.25) sepia(1) hue-rotate(105deg); }
+        .mode-day { filter: contrast(1.1) brightness(1); }
+
+        /* HUD */
+        .hud { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1000; box-shadow: inset 0 0 150px #000; }
+        .panel { position: absolute; background: rgba(0,10,0,0.85); border: 1px solid var(--main); padding: 12px; font-size: 13px; pointer-events: auto; }
+        .top-left { top: 20px; left: 20px; border-left: 4px solid var(--main); }
+        .top-right { top: 20px; right: 20px; text-align: right; }
+
+        /* Nişangah (+) */
+        .crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 140px; height: 140px; z-index: 1001; }
+        .crosshair::before, .crosshair::after { content: ""; position: absolute; background: var(--main); opacity: 0.7; }
+        .crosshair::before { top: 50%; left: 0; width: 100%; height: 1.5px; }
+        .crosshair::after { top: 0; left: 50%; width: 1.5px; height: 100%; }
+
+        /* === SAĞDAN GƏLƏN RAKET (HUD ÜSTÜNDƏ) === */
+        #missile-trail {
+            position: absolute; top: 50%; right: -400px;
+            width: 150px; height: 4px;
+            background: linear-gradient(to left, #fff, #ff6600, transparent);
+            box-shadow: -20px 0 40px #ff3300;
+            z-index: 2000; opacity: 0; transform: translateY(-50%);
+        }
+
+        /* === DƏYDİYİ NÖQTƏDƏ ALOV (YAYILMA YOQ) === */
+        .impact-fire {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, #fff 0%, #ffff00 30%, #ff6600 60%, #ff0000 100%);
+            border-radius: 50%;
+            filter: blur(3px);
+            animation: burn-fire 2.5s forwards;
+            pointer-events: none;
+            z-index: 1500;
+        }
+
+        @keyframes burn-fire {
+            0% { opacity: 1; width: 80px; height: 80px; }
+            50% { opacity: 0.8; width: 100px; height: 100px; }
+            100% { opacity: 0; width: 120px; height: 120px; }
+        }
+
+        /* Hədəf Kilidi */
+        .target-lock {
+            border: 2px solid var(--danger);
+            width: 60px; height: 60px;
+            position: absolute; transform: translate(-50%, -50%);
+            animation: blink 0.2s infinite;
+        }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.2; } }
+
+        /* Mode Indicator */
+        .mode-indicator {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            padding: 10px 30px;
+            border: 1px solid var(--main);
+            background: rgba(0,255,65,0.1);
+            color: var(--main);
+        }
+        .mode-indicator.multi {
+            border-color: var(--danger);
+            background: rgba(255,0,0,0.1);
+            color: var(--danger);
+        }
+
+        /* Speed Boost Indicator */
+        .boost-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            font-weight: bold;
+            color: var(--warn);
+            text-shadow: 0 0 20px var(--warn);
+            z-index: 2000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .boost-indicator.active {
+            opacity: 1;
+            animation: pulse-boost 0.5s infinite;
+        }
+
+        @keyframes pulse-boost {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.1); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="map" class="mode-night leaflet-container leaflet-touch leaflet-fade-anim leaflet-grab leaflet-touch-drag leaflet-touch-zoom" tabindex="0" style="outline-style: none;"><div class="leaflet-pane leaflet-map-pane" style="transform: translate3d(0px, 53px, 0px);"><div class="leaflet-pane leaflet-tile-pane"><div class="leaflet-layer " style="z-index: 1; opacity: 1;"><div class="leaflet-tile-container leaflet-zoom-animated" style="z-index: 18; transform: translate3d(0px, 0px, 0px) scale(1);"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83606_002_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(593px, 179px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83606_003_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(593px, -77px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83605_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(337px, 179px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83607_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(849px, 179px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83606_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(593px, 435px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83605_002_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(337px, -77px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83607_002_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(849px, -77px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83605_003_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(337px, 435px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83607_003_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(849px, 435px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83604_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(81px, 179px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83608_003_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1105px, 179px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83604_002_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(81px, -77px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83608_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1105px, -77px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83604_003_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(81px, 435px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83608_002_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1105px, 435px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83603_003_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(-175px, 179px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83609_003_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1361px, 179px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83603_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(-175px, -77px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83609_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1361px, -77px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83603_002_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(-175px, 435px, 0px); opacity: 1;"><img alt="" src="CODMON%20UAV%20SYSTEM_files/83609_002_KXmY.jpeg" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(1361px, 435px, 0px); opacity: 1;"></div></div></div><div class="leaflet-pane leaflet-overlay-pane"></div><div class="leaflet-pane leaflet-shadow-pane"></div><div class="leaflet-pane leaflet-marker-pane"></div><div class="leaflet-pane leaflet-tooltip-pane"></div><div class="leaflet-pane leaflet-popup-pane"></div><div class="leaflet-proxy leaflet-zoom-animated" style="transform: translate3d(21403200px, 12631400px, 0px) scale(65536);"></div></div><div class="leaflet-control-container"><div class="leaflet-top leaflet-left"></div><div class="leaflet-top leaflet-right"></div><div class="leaflet-bottom leaflet-left"></div><div class="leaflet-bottom leaflet-right"></div></div></div>
+<div id="missile-trail"></div>
+<div class="boost-indicator" id="boost-text">SPEED BOOST</div>
+
+<div class="hud">
+    <div class="panel top-left">
+        <div style="font-weight: bold; color: #fff;">CODMON UAV</div>
+        <div>COORDS: <span id="lat">40.58623</span>, <span id="lng">49.63170</span></div>
+        <div>ALTITUDE: <span id="alt">45,000</span> FT</div>
+        <div>BEARING: <span id="bearing">0</span>°</div>
+        <div>MODE: <span id="mode-display" style="color: var(--main);">SINGLE STRIKE</span></div>
+        <div style="color: yellow; font-size: 11px; margin-top: 5px;">QUEUED: <span id="queue-count">0</span></div>
+    </div>
+
+    <div class="panel top-right">
+        <div>SPD: <span id="spd">1</span> km/h</div>
+        <div style="font-size: 10px; color: #aaa; margin-top: 10px;">
+            [W] - FORWARD<br>
+            [S] - BACKWARD<br>
+            [A] - STRAFE LEFT<br>
+            [D] - STRAFE RIGHT<br>
+            [Q] - ROTATE LEFT<br>
+            [E] - ROTATE RIGHT<br>
+            [U] - CLIMB (UP)<br>
+            [V] - DESCEND (DOWN)<br>
+            [X] - SPEED BOOST (+10/s)<br>
+            [M] - NIGHT VISION<br>
+            [1-9] - SPEED (5-90 km/h)<br>
+            [0] - TOGGLE MODE<br>
+            <span style="color: var(--danger); font-weight: bold;"></span>
+        </div>
+    </div>
+
+    <div class="crosshair"></div>
+
+    <div class="mode-indicator" id="mode-ind">SINGLE STRIKE MODE - [0] TO CHANGE</div>
+</div>
+
+<!-- === SƏS EFEKTLƏRİ === -->
+<audio id="s-launch" src="CODMON%20UAV%20SYSTEM_files/2571-preview_KXmY.mp3" preload="auto"></audio>
+<audio id="s-bombardment" src="CODMON%20UAV%20SYSTEM_files/146-preview_KXmY.mp3" preload="auto"></audio>
+
+<script src="CODMON%20UAV%20SYSTEM_files/leaflet_KXmY.js"></script>
+<script>
+    let lat = 40.5858, lng = 49.6317;
+    let altitude = 45000;
+    let speedMult = 1;
+    let isNight = true;
+    let bearing = 0;
+    
+    // Speed Boost System
+    let isBoosting = false;
+    let boostInterval = null;
+
+    // Strike System
+    let strikeMode = 'single';
+    let targetQueue = [];
+    let isMissileInFlight = false;
+    let lastEnterTime = 0;
+    let doublePressTimer = null;
+
+    const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 17);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+
+    const speedMap = {
+        '1': 1, '2': 10, '3': 30, '4': 40, '5': 50,
+        '6': 60, '7': 100, '8': 150, '9': 200
+    };
+
+    const keys = {};
+    window.onkeydown = (e) => {
+        const key = e.key.toLowerCase();
+
+        // ENTER - Fire missile
+        if(e.key === 'Enter') {
+            handleEnterPress();
+            return;
+        }
+
+        // 0 - Toggle mode
+        if(e.key === '0') {
+            toggleStrikeMode();
+            return;
+        }
+
+        // 1-9 - Speed control (resets boost)
+        if(speedMap.hasOwnProperty(key)) {
+            speedMult = speedMap[key];
+            document.getElementById('spd').innerText = speedMult;
+            stopBoost();
+            return;
+        }
+
+        // X - Speed Boost (Hər 1 saniyədə +10 km/h)
+        if(key === 'x' && !isBoosting) {
+            startBoost();
+            return;
+        }
+
+        keys[key] = true;
+        if(key === 'm') {
+            isNight = !isNight;
+            document.getElementById('map').className = isNight ? 'mode-night' : 'mode-day';
+        }
+    };
+
+    window.onkeyup = (e) => {
+        const key = e.key.toLowerCase();
+        keys[key] = false;
+
+        // X-dən əl çəkəndə boost dayandır (sürət qalır)
+        if(key === 'x') {
+            stopBoost();
+        }
+    };
+
+    // Start Speed Boost
+    function startBoost() {
+        isBoosting = true;
+        document.getElementById('boost-text').classList.add('active');
+
+        // Hər 1 saniyədə +10 km/h artır
+        boostInterval = setInterval(() => {
+            speedMult += 20;
+            document.getElementById('spd').innerText = speedMult;
+        }, 1000);
+    }
+
+    // Stop Speed Boost
+    function stopBoost() {
+        isBoosting = false;
+        document.getElementById('boost-text').classList.remove('active');
+        
+        if(boostInterval) {
+            clearInterval(boostInterval);
+            boostInterval = null;
+        }
+    }
+
+    // Toggle between Single and Multi strike mode
+    function toggleStrikeMode() {
+        const modeDisplay = document.getElementById('mode-display');
+        const modeInd = document.getElementById('mode-ind');
+        const queueCount = document.getElementById('queue-count');
+
+        if(strikeMode === 'single') {
+            strikeMode = 'multi';
+            modeDisplay.innerText = 'MULTI STRIKE';
+            modeDisplay.style.color = 'var(--danger)';
+            modeInd.innerText = 'MULTI STRIKE MODE - QUEUE TARGETS - [ENTER] x2 TO FIRE';
+            modeInd.classList.add('multi');
+            targetQueue = [];
+            queueCount.innerText = '0';
+        } else {
+            strikeMode = 'single';
+            modeDisplay.innerText = 'SINGLE STRIKE';
+            modeDisplay.style.color = 'var(--main)';
+            modeInd.innerText = 'SINGLE STRIKE MODE - [0] TO CHANGE';
+            modeInd.classList.remove('multi');
+            targetQueue = [];
+            queueCount.innerText = '0';
+        }
+    }
+
+    // Handle ENTER press
+    function handleEnterPress() {
+        const currentTime = Date.now();
+
+        if(strikeMode === 'single') {
+            if(!isMissileInFlight) {
+                executeStrike(lat, lng);
+            }
+        } else {
+            if(currentTime - lastEnterTime < 500) {
+                if(doublePressTimer) {
+                    clearTimeout(doublePressTimer);
+                    doublePressTimer = null;
+                    fireAllQueued();
+                }
+            } else {
+                queueTarget(lat, lng);
+                doublePressTimer = setTimeout(() => {
+                    doublePressTimer = null;
+                }, 500);
+            }
+            lastEnterTime = currentTime;
+        }
+    }
+
+    // Queue a target in multi mode
+    function queueTarget(tLat, tLng) {
+        targetQueue.push({ lat: tLat, lng: tLng, alt: altitude });
+        document.getElementById('queue-count').innerText = targetQueue.length;
+
+        const lockIcon = L.divIcon({ 
+            className: 'target-lock', 
+            iconSize: [60, 60], 
+            iconAnchor: [30, 30] 
+        });
+        const lockMarker = L.marker([tLat, tLng], { icon: lockIcon }).addTo(map);
+
+        setTimeout(() => {
+            map.removeLayer(lockMarker);
+        }, 2000);
+    }
+
+    // Fire all queued missiles
+    function fireAllQueued() {
+        if(targetQueue.length === 0) return;
+
+        const modeInd = document.getElementById('mode-ind');
+        modeInd.innerText = `FIRING ${targetQueue.length} MISSILES...`;
+
+        targetQueue.forEach((target, index) => {
+            setTimeout(() => {
+                executeStrike(target.lat, target.lng);
+            }, index * 400);
+        });
+
+        setTimeout(() => {
+            targetQueue = [];
+            document.getElementById('queue-count').innerText = '0';
+            modeInd.innerText = 'MULTI STRIKE MODE - QUEUE TARGETS - [ENTER] x2 TO FIRE';
+        }, targetQueue.length * 400);
+    }
+
+    // === 360° DRON HƏRƏKƏT SİSTEMİ + ALTITUDE CONTROL + AUTO-DRIFT ===
+    function droneLoop() {
+        // AVTOMATİK DRİFT - HƏMİŞƏ 1 KM/H İRƏLİ (Bearing istiqamətində)
+        let autoStep = 0.00001; // 1 km/h equivalent
+        lat += Math.cos(bearing * Math.PI / 180) * autoStep;
+        lng += Math.sin(bearing * Math.PI / 180) * autoStep;
+
+        // Manual sürət əlavəsi (X boost və ya 1-9 düymələri)
+        if(speedMult > 1) {
+            let boostStep = 0.00001 * (speedMult - 1);
+            lat += Math.cos(bearing * Math.PI / 180) * boostStep;
+            lng += Math.sin(bearing * Math.PI / 180) * boostStep;
+        }
+
+        // Rotation
+        if(keys['q']) {
+            bearing = (bearing - 2) % 360;
+            if(bearing < 0) bearing += 360;
+        }
+        if(keys['e']) {
+            bearing = (bearing + 2) % 360;
+        }
+
+        // Horizontal movement (manual override)
+        if(keys['w']) {
+            lat += Math.cos(bearing * Math.PI / 180) * 0.0001 * speedMult;
+            lng += Math.sin(bearing * Math.PI / 180) * 0.0001 * speedMult;
+        }
+        if(keys['s']) {
+            lat -= Math.cos(bearing * Math.PI / 180) * 0.0001 * speedMult;
+            lng -= Math.sin(bearing * Math.PI / 180) * 0.0001 * speedMult;
+        }
+        if(keys['a']) {
+            lat += Math.cos((bearing - 90) * Math.PI / 180) * 0.0001 * speedMult;
+            lng += Math.sin((bearing - 90) * Math.PI / 180) * 0.0001 * speedMult;
+        }
+        if(keys['d']) {
+            lat += Math.cos((bearing + 90) * Math.PI / 180) * 0.0001 * speedMult;
+            lng += Math.sin((bearing + 90) * Math.PI / 180) * 0.0001 * speedMult;
+        }
+
+        // ALTITUDE CONTROL
+        if(keys['u']) {
+            altitude += 50 * speedMult;
+        }
+        if(keys['v']) {
+            altitude -= 50 * speedMult;
+            if(altitude < 0) altitude = 0;
+        }
+
+        map.setView([lat, lng], map.getZoom(), { animate: false });
+        
+        document.getElementById('lat').innerText = lat.toFixed(5);
+        document.getElementById('lng').innerText = lng.toFixed(5);
+        document.getElementById('bearing').innerText = bearing;
+        document.getElementById('alt').innerText = Math.floor(altitude).toLocaleString();
+
+      requestAnimationFrame(droneLoop);
+    }
+    droneLoop();
+
+    // === DƏYDİYİ NÖQTƏDƏ ALOV ===
+    function createImpactFire(targetLat, targetLng) {
+        const point = map.latLngToContainerPoint([targetLat, targetLng]);
+
+        const fire = document.createElement('div');
+        fire.className = 'impact-fire';
+        fire.style.left = point.x + 'px';
+        fire.style.top = point.y + 'px';
+        document.body.appendChild(fire);
+
+        setTimeout(() => {
+            document.body.removeChild(fire);
+        }, 2500);
+    }
+
+    // === BOMBARDMAN SƏSİ ===
+    function playBombardmentSound() {
+        const bombSound = document.getElementById('s-bombardment');
+        bombSound.currentTime = 0;
+        bombSound.volume = 1.0;
+        bombSound.play().catch(e => console.log("Audio error:", e));
+    }
+
+    // === RAKET VƏ BOMBARDMAN SİSTEMİ ===
+    function executeStrike(targetLat, targetLng) {
+        if(isMissileInFlight && strikeMode === 'single') return;
+
+        const trail = document.getElementById('missile-trail');
+        const sLaunch = document.getElementById('s-launch');
+
+        isMissileInFlight = true;
+        
+        sLaunch.currentTime = 0;
+        sLaunch.volume = 0.8;
+        sLaunch.play().catch(e => console.log("Audio error:", e));
+
+        const lockIcon = L.divIcon({ className: 'target-lock', iconSize: [60, 60], iconAnchor: [30, 30] });
+        const lockMarker = L.marker([targetLat, targetLng], { icon: lockIcon }).addTo(map);
+
+        trail.style.transition = "none";
+        trail.style.right = "-400px";
+        trail.style.opacity = "1";
+        
+        setTimeout(() => {
+            trail.style.transition = "right 0.5s cubic-bezier(0.4, 0, 1, 1)";
+            trail.style.right = "50%";
+        }, 20);
+
+        setTimeout(() => {
+            trail.style.opacity = "0";
+            playBombardmentSound();
+            map.removeLayer(lockMarker);
+            createImpactFire(targetLat, targetLng);
+
+            setTimeout(() => {
+                isMissileInFlight = false;
+            }, 2500);
+
+        }, 3000);
+    }
+</script>
+
+</body></html>
